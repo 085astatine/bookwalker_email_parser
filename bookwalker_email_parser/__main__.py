@@ -7,6 +7,7 @@ import pathlib
 from typing import Optional
 
 from .config import load_config
+from .download import download
 
 
 def main(
@@ -25,6 +26,8 @@ def main(
     logger.debug("option: %s", option)
     # config
     config = load_config(option.config, logger=logger)
+    # download
+    download(config, logger=logger)
 
 
 def default_logger() -> logging.Logger:
