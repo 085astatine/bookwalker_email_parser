@@ -3,7 +3,10 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import logging
+import pathlib
 from typing import Optional
+
+from .config import load_config
 
 
 def main(
@@ -20,6 +23,8 @@ def main(
     if option.verbose:
         logger.setLevel(logging.DEBUG)
     logger.debug("option: %s", option)
+    # config
+    config = load_config(option.config, logger=logger)
 
 
 def default_logger() -> logging.Logger:
@@ -36,6 +41,7 @@ def default_logger() -> logging.Logger:
 @dataclasses.dataclass
 class Option:
     verbose: bool
+    config: pathlib.Path
 
     @classmethod
     def parser(cls) -> argparse.ArgumentParser:
@@ -47,6 +53,15 @@ class Option:
             dest="verbose",
             action="store_true",
             help="set log level to debug",
+        )
+        # config
+        parser.add_argument(
+            "--config",
+            dest="config",
+            default="config.toml",
+            metavar="TOML",
+            type=pathlib.Path,
+            help=".toml file (default %(default)s)",
         )
         return parser
 
