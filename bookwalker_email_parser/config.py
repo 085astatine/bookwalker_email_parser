@@ -15,11 +15,15 @@ class ClientConfig:
     host: str
     username: str
     password: str
+    fetch_size: Optional[int] = None
 
 
 @dataclasses.dataclass(frozen=True)
 class WorkspaceConfig:
     path: pathlib.Path
+
+    def mail_directory(self) -> pathlib.Path:
+        return self.path.joinpath("mail")
 
 
 @dataclasses.dataclass(frozen=True)
