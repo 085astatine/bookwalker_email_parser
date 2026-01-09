@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import logging
 import pathlib
 import tomllib
@@ -16,9 +17,22 @@ class ClientConfig:
     password: str
 
 
+@dataclasses.dataclass(frozen=True)
+class WorkspaceConfig:
+    path: pathlib.Path
+
+
+@dataclasses.dataclass(frozen=True)
+class TargetConfig:
+    folder: str
+    since: Optional[datetime.date | datetime.datetime] = None
+
+
 @dataclasses.dataclass
 class Config:
     client: ClientConfig
+    workspace: WorkspaceConfig
+    targets: list[TargetConfig] = dataclasses.field(default_factory=list)
 
 
 def load_config(
@@ -35,6 +49,12 @@ def load_config(
     config = dacite.from_dict(
         data_class=Config,
         data=data,
+        config=dacite.Config(
+            type_hooks={
+                pathlib.Path: pathlib.Path,
+            },
+            strict=True,
+        ),
     )
     logger.debug("config: %s", config)
     return config
