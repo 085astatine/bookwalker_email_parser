@@ -16,6 +16,7 @@ class ClientConfig:
     username: str
     password: str
     fetch_size: Optional[int] = None
+    request_interval: float = 1.0
 
 
 @dataclasses.dataclass(frozen=True)

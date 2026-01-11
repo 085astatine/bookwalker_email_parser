@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Optional
 
 import imapclient
@@ -15,6 +16,8 @@ def download(
     logger: Optional[logging.Logger] = None,
 ) -> None:
     logger = logger or logging.getLogger(__name__)
+    # timer
+    timer = IntervalTimer(config.client.request_interval, logger=logger)
     # client
     with imapclient.IMAPClient(host=config.client.host) as client:
         # login
@@ -26,6 +29,7 @@ def download(
             # select folder
             result = client.select_folder(target.folder, readonly=True)
             logger.debug("select folder: %s", result)
+            timer.wait()
             # search
             message_ids = client.search(search_criteria(target))
             if not message_ids:
@@ -37,6 +41,7 @@ def download(
                 message_ids[0],
                 message_ids[-1],
             )
+            timer.wait()
             # fetch & save
             directory = config.workspace.mail_directory().joinpath(target.folder)
             if not directory.exists():
@@ -53,6 +58,7 @@ def download(
                     logger.debug("save message: %d", message_id)
                     path = directory.joinpath(str(message_id))
                     path.write_bytes(data[b"RFC822"])
+                timer.wait()
 
 
 def search_criteria(config: TargetConfig) -> list[Any]:
@@ -64,3 +70,23 @@ def search_criteria(config: TargetConfig) -> list[Any]:
     if not criteria:
         criteria.append("ALL")
     return criteria
+
+
+class IntervalTimer:
+    def __init__(
+        self,
+        interval: float,
+        *,
+        logger: Optional[logging.Logger] = None,
+    ) -> None:
+        self._time: Optional[float] = None
+        self._interval = interval
+        self._logger = logger or logging.getLogger(__name__)
+
+    def wait(self) -> None:
+        if self._time is not None:
+            wait_time = self._interval + self._time - time.time()
+            if wait_time > 0:
+                self._logger.debug("wait %f seconds", wait_time)
+                time.sleep(wait_time)
+        self._time = time.time()
