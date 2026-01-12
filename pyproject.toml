@@ -20,3 +20,11 @@ dev = [
 
 [tool.isort]
 profile = "black"
+
+[tool.pylint.message_control]
+disable = [
+  "missing-module-docstring", # C0114
+  "missing-class-docstring", # C0115
+  "missing-function-docstring", # C0116
+  "too-few-public-methods", # R0903
+]
