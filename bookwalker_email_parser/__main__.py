@@ -6,8 +6,9 @@ import logging
 import pathlib
 from typing import Optional
 
-from .config import load_config
+from .config import Config, load_config
 from .download import download
+from .mail import Mail
 
 
 def main(
@@ -72,6 +73,23 @@ class Option:
 def parse_option(args: Optional[list[str]] = None) -> Option:
     option = Option.parser().parse_args(args)
     return Option(**vars(option))
+
+
+def load_mails(
+    config: Config,
+    *,
+    logger: Optional[logging.Logger] = None,
+) -> list[Mail]:
+    mails: list[Mail] = []
+    for target in config.targets:
+        directory = config.workspace.mail_directory().joinpath(target.folder)
+        for path in directory.iterdir():
+            mail = Mail.load_file(path, logger=logger)
+            if mail is not None:
+                mails.append(mail)
+    # sort from oldest to newest
+    mails.sort(key=lambda mail: mail.date)
+    return mails
 
 
 if __name__ == "__main__":
