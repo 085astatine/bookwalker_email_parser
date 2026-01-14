@@ -4,7 +4,7 @@ import dataclasses
 import email.parser
 import email.policy
 import logging
-from typing import TYPE_CHECKING, Optional, Self, cast
+from typing import TYPE_CHECKING, Literal, Optional, Self, cast
 
 if TYPE_CHECKING:
     import datetime
@@ -13,11 +13,30 @@ if TYPE_CHECKING:
     import pathlib
 
 
+MailType = Literal["Payment", "PreOrderPayment", "PreOrder", "Other"]
+
+
 @dataclasses.dataclass(frozen=True)
 class Mail:
     subject: str
     date: datetime.datetime
     body: str
+
+    def type(self) -> MailType:
+        # pre-order payment
+        if "Order Confirmation for Pre-ordered eBooks" in self.subject:
+            return "PreOrderPayment"
+        # payment
+        if (
+            "Order Confirmation" in self.subject
+            or "お支払い完了のお知らせ" in self.subject
+        ):
+            return "Payment"
+        # pre-order
+        if "Pre-order Confirmation" in self.subject:
+            return "PreOrder"
+        # other
+        return "Other"
 
     @classmethod
     def load_file(
