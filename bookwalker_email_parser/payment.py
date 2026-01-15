@@ -95,7 +95,7 @@ def parse_books(
     ):
         book = Book(
             title=match.group("title"),
-            price=parse_price(match.group("price")),
+            price=parse_price(match.group("price"), logger),
         )
         logger.info('book: "%s" %d', book.title, book.price)
         books.append(book)
@@ -112,17 +112,21 @@ def parse_discount(
         flags=re.MULTILINE,
     )
     if match:
-        value = parse_price(match.group("discount"))
+        value = parse_price(match.group("discount"), logger)
         logger.info("discount: %d", value)
         return value
     return 0
 
 
-def parse_price(text: str) -> int:
+def parse_price(
+    text: str,
+    logger: logging.Logger,
+) -> int:
     match = re.match(
         r"JPY\s*(?P<value>-?[0-9,]+)(\s*\(+Tax\))?",
         text,
     )
     if match:
         return int(match.group("value").replace(",", ""))
+    logger.error("Failed to parse price: %s", text)
     return 0
