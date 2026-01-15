@@ -22,6 +22,7 @@ class Payment:
     date: datetime.datetime
     books: list[Book]
     discount: int
+    tax: int
 
 
 def parse_payment(
@@ -44,10 +45,13 @@ def parse_payment(
     books = parse_books(mail.body, logger)
     # discount
     discount = parse_discount(mail.body, logger)
+    # tax
+    tax = parse_tax(mail.body, logger)
     return Payment(
         date=date,
         books=books,
         discount=discount,
+        tax=tax,
     )
 
 
@@ -115,6 +119,23 @@ def parse_discount(
         value = parse_price(match.group("discount"), logger)
         logger.info("discount: %d", value)
         return value
+    return 0
+
+
+def parse_tax(
+    body: str,
+    logger: logging.Logger,
+) -> int:
+    match = re.search(
+        r"^■Tax\s*：\s*(?P<tax>.+)$",
+        body,
+        flags=re.MULTILINE,
+    )
+    if match:
+        value = parse_price(match.group("tax"), logger)
+        logger.info("tax: %d", value)
+        return value
+    logger.error("Failed to parse tax")
     return 0
 
 
