@@ -12,8 +12,15 @@ if TYPE_CHECKING:
 
 
 @dataclasses.dataclass
+class Book:
+    title: str
+    price: int
+
+
+@dataclasses.dataclass
 class Payment:
     date: datetime.datetime
+    books: list[Book]
 
 
 def parse_payment(
@@ -32,8 +39,11 @@ def parse_payment(
     if date is None:
         logger.debug("Failed to parse purchased date")
         date = mail.date
+    # books
+    books = parse_books(mail.body, logger)
     return Payment(
         date=date,
+        books=books,
     )
 
 
@@ -66,3 +76,33 @@ def parse_purchased_date(body: str) -> Optional[datetime.datetime]:
 TIMEZONE_DICT: dict[str, str] = {
     "JST": "Asia/Tokyo",
 }
+
+
+def parse_books(
+    body: str,
+    logger: logging.Logger,
+) -> list[Book]:
+    books: list[Book] = []
+    for match in re.finditer(
+        r"^■(Title|Item|Title / Item)\s*：\s*(?P<title>.+)$\n"
+        r"^■Price\s*：\s*(?P<price>.+)$",
+        body,
+        flags=re.MULTILINE,
+    ):
+        book = Book(
+            title=match.group("title"),
+            price=parse_price(match.group("price")),
+        )
+        logger.info('book: "%s" %d', book.title, book.price)
+        books.append(book)
+    return books
+
+
+def parse_price(text: str) -> int:
+    match = re.match(
+        r"JPY\s*(?P<value>-?[0-9,]+)(\s*\(+Tax\))?",
+        text,
+    )
+    if match:
+        return int(match.group("value").replace(",", ""))
+    return 0
