@@ -21,6 +21,7 @@ class Book:
 class Payment:
     date: datetime.datetime
     books: list[Book]
+    discount: int
 
 
 def parse_payment(
@@ -41,9 +42,12 @@ def parse_payment(
         date = mail.date
     # books
     books = parse_books(mail.body, logger)
+    # discount
+    discount = parse_discount(mail.body, logger)
     return Payment(
         date=date,
         books=books,
+        discount=discount,
     )
 
 
@@ -96,6 +100,22 @@ def parse_books(
         logger.info('book: "%s" %d', book.title, book.price)
         books.append(book)
     return books
+
+
+def parse_discount(
+    body: str,
+    logger: logging.Logger,
+) -> int:
+    match = re.search(
+        r"^■Coupon Discount\s*：\s*(?P<discount>.+)$",
+        body,
+        flags=re.MULTILINE,
+    )
+    if match:
+        value = parse_price(match.group("discount"))
+        logger.info("discount: %d", value)
+        return value
+    return 0
 
 
 def parse_price(text: str) -> int:
