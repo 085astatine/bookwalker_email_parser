@@ -26,11 +26,20 @@ class Payment:
     coin_usage: int
 
 
+@dataclasses.dataclass
+class Charge:
+    date: datetime.datetime
+    item: str
+    amount: int
+    coin: int
+    bonus_coin: int
+
+
 def parse_payment(
     mail: Mail,
     *,
     logger: Optional[logging.Logger] = None,
-) -> Optional[Payment]:
+) -> Optional[Payment | Charge]:
     # logger
     logger = logger or logging.getLogger(__name__)
     # mail type
@@ -38,13 +47,19 @@ def parse_payment(
     if mail_type not in ["Payment", "PreOrderPayment"]:
         logger.info("mail is not payment")
         return None
+    # books
+    books = parse_books(mail.body, logger)
+    # charge
+    if not books:
+        charge = parse_charge(mail, logger)
+        if charge is not None:
+            return charge
+        return None
     # purchased date
     date = parse_purchased_date(mail.body)
     if date is None:
         logger.debug("Failed to parse purchased date")
         date = mail.date
-    # books
-    books = parse_books(mail.body, logger)
     # discount
     discount = (
         parse_price_with_key("Coupon Discount", mail.body, logger)
@@ -120,6 +135,40 @@ def parse_books(
     return books
 
 
+def parse_charge(
+    mail: Mail,
+    logger: logging.Logger,
+) -> Optional[Charge]:
+    match = re.search(
+        r"^■Item\s*:\s*(?P<item>BOOK☆WALKER (期間限定)?コイン [0-9,]+円分).+$\n*"
+        r"^■Amount\s*:\s*(?P<amount>[0-9]+)$\n"
+        r"^■Bonus Coin\s*:\s*(?P<bonus_coin>[0-9,]+)$",
+        mail.body.replace("\r\n", "\n"),
+        flags=re.MULTILINE,
+    )
+    if match is None:
+        logger.error("Failed to parse email as a charge")
+        return None
+    item = match.group("item")
+    amount = int(match.group("amount"))
+    bonus_coin = int(match.group("bonus_coin").replace(",", ""))
+    total_payment = parse_price_with_key("Total Payment", mail.body, logger)
+    logger.info(
+        'Charge: "%s" x %d, %d + %d(bonus)',
+        item,
+        amount,
+        total_payment,
+        bonus_coin,
+    )
+    return Charge(
+        date=mail.date,
+        item=item,
+        amount=amount,
+        coin=total_payment,
+        bonus_coin=bonus_coin,
+    )
+
+
 def parse_price_with_key(
     key: str,
     body: str,
@@ -129,7 +178,7 @@ def parse_price_with_key(
 ) -> int:
     pattern = pattern or key
     match = re.search(
-        rf"^■{pattern}\s*：\s*(?P<value>.+)$",
+        rf"^■{pattern}\s*[:：]\s*(?P<value>.+)$",
         body,
         flags=re.MULTILINE,
     )
