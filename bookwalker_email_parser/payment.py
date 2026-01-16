@@ -23,6 +23,7 @@ class Payment:
     books: list[Book]
     discount: int
     tax: int
+    coin_usage: int
 
 
 def parse_payment(
@@ -52,11 +53,19 @@ def parse_payment(
     )
     # tax
     tax = parse_price_with_key("Tax", mail.body, logger)
+    # coin usage
+    coin_usage = parse_price_with_key(
+        "Coin Usage",
+        mail.body,
+        logger,
+        pattern="Coin Usage[^：]*",
+    )
     return Payment(
         date=date,
         books=books,
         discount=discount,
         tax=tax,
+        coin_usage=coin_usage,
     )
 
 
@@ -115,9 +124,12 @@ def parse_price_with_key(
     key: str,
     body: str,
     logger: logging.Logger,
+    *,
+    pattern: Optional[str] = None,
 ) -> int:
+    pattern = pattern or key
     match = re.search(
-        rf"^■{key}\s*：\s*(?P<value>.+)$",
+        rf"^■{pattern}\s*：\s*(?P<value>.+)$",
         body,
         flags=re.MULTILINE,
     )
