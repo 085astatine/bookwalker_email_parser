@@ -25,6 +25,15 @@ class Payment:
     tax: int
     coin_usage: int
 
+    def subtotal(self) -> int:
+        return sum(book.price for book in self.books)
+
+    def total_amount(self) -> int:
+        return self.subtotal() + self.discount + self.tax
+
+    def total_payment(self) -> int:
+        return self.total_amount() + self.coin_usage
+
 
 @dataclasses.dataclass
 class Charge:
@@ -75,13 +84,43 @@ def parse_order(
         logger,
         pattern="Coin Usage[^：]*",
     )
-    return Payment(
+    payment = Payment(
         date=date,
         books=books,
         discount=discount,
         tax=tax,
         coin_usage=coin_usage,
     )
+    # check: subtotal
+    subtotal = parse_price_with_key("Subtotal", mail.body, logger)
+    if subtotal != payment.subtotal():
+        logger.error(
+            "Subtotals are not equal: %d != %d",
+            subtotal,
+            payment.subtotal(),
+        )
+    # check: total amount
+    total_amount = parse_price_with_key("Total Amount", mail.body, logger)
+    if total_amount != payment.total_amount():
+        logger.error(
+            "Total Amounts not equal: %d != %d",
+            total_amount,
+            payment.total_amount(),
+        )
+    # check: total payment
+    total_payment = parse_price_with_key(
+        "Total Payment",
+        mail.body,
+        logger,
+        pattern="(Payment Total|Total Payment)",
+    )
+    if total_payment != payment.total_payment():
+        logger.error(
+            "Total Payments not equal: %d != %d",
+            total_payment,
+            payment.total_payment(),
+        )
+    return payment
 
 
 def parse_purchased_date(body: str) -> Optional[datetime.datetime]:
