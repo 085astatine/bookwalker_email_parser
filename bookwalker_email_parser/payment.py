@@ -33,7 +33,8 @@ def parse_payment(
     # logger
     logger = logger or logging.getLogger(__name__)
     # mail type
-    if mail.type() not in ["Payment", "PreOrderPayment"]:
+    mail_type = mail.type()
+    if mail_type not in ["Payment", "PreOrderPayment"]:
         logger.info("mail is not payment")
         return None
     # purchased date
@@ -44,9 +45,13 @@ def parse_payment(
     # books
     books = parse_books(mail.body, logger)
     # discount
-    discount = parse_discount(mail.body, logger)
+    discount = (
+        parse_price_with_key("Coupon Discount", mail.body, logger)
+        if mail_type == "Payment"
+        else 0
+    )
     # tax
-    tax = parse_tax(mail.body, logger)
+    tax = parse_price_with_key("Tax", mail.body, logger)
     return Payment(
         date=date,
         books=books,
@@ -106,36 +111,21 @@ def parse_books(
     return books
 
 
-def parse_discount(
+def parse_price_with_key(
+    key: str,
     body: str,
     logger: logging.Logger,
 ) -> int:
     match = re.search(
-        r"^■Coupon Discount\s*：\s*(?P<discount>.+)$",
+        rf"^■{key}\s*：\s*(?P<value>.+)$",
         body,
         flags=re.MULTILINE,
     )
     if match:
-        value = parse_price(match.group("discount"), logger)
-        logger.info("discount: %d", value)
+        value = parse_price(match.group("value"), logger)
+        logger.info("%s: %d", key, value)
         return value
-    return 0
-
-
-def parse_tax(
-    body: str,
-    logger: logging.Logger,
-) -> int:
-    match = re.search(
-        r"^■Tax\s*：\s*(?P<tax>.+)$",
-        body,
-        flags=re.MULTILINE,
-    )
-    if match:
-        value = parse_price(match.group("tax"), logger)
-        logger.info("tax: %d", value)
-        return value
-    logger.error("Failed to parse tax")
+    logger.error("Failed to parse %s", key)
     return 0
 
 
