@@ -35,7 +35,7 @@ class Charge:
     bonus_coin: int
 
 
-def parse_payment(
+def parse_order(
     mail: Mail,
     *,
     logger: Optional[logging.Logger] = None,
