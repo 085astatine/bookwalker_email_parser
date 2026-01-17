@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import json
 import logging
 import re
 import zoneinfo
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
+    import pathlib
+
     from .mail import Mail
 
 
@@ -352,3 +355,25 @@ MONTH_NAMES: list[str] = [
     "November",
     "December",
 ]
+
+
+def save_orders_as_json(
+    path: pathlib.Path,
+    orders: list[Payment | Charge],
+) -> None:
+    with path.open(mode="w", encoding="utf-8") as file:
+        json.dump(
+            [dataclasses.asdict(order) for order in orders],
+            file,
+            ensure_ascii=False,
+            cls=OrdersJSONEncoder,
+            indent=2,
+        )
+        file.write("\n")
+
+
+class OrdersJSONEncoder(json.JSONEncoder):
+    def default(self, o: Any) -> Any:
+        if isinstance(o, datetime.datetime):
+            return o.isoformat()
+        return super().default(o)
