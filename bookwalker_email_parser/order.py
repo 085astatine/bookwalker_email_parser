@@ -6,7 +6,9 @@ import json
 import logging
 import re
 import zoneinfo
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Type, TypeVar
+
+import dacite
 
 if TYPE_CHECKING:
     import pathlib
@@ -377,3 +379,36 @@ class OrdersJSONEncoder(json.JSONEncoder):
         if isinstance(o, datetime.datetime):
             return o.isoformat()
         return super().default(o)
+
+
+def load_orders_from_json(
+    path: pathlib.Path,
+) -> list[Payment | Charge]:
+    with path.open(mode="r", encoding="utf-8") as file:
+        orders = json.load(file)
+    return [to_order(order) for order in orders]
+
+
+def to_order(data: Any) -> Payment | Charge:
+    if "books" in data:
+        return to_order_impl(Payment, data)
+    return to_order_impl(Charge, data)
+
+
+OrderT = TypeVar("OrderT")
+
+
+def to_order_impl(
+    data_class: Type[OrderT],
+    data: dict,
+) -> OrderT:
+    return dacite.from_dict(
+        data_class=data_class,
+        data=data,
+        config=dacite.Config(
+            type_hooks={
+                datetime.datetime: datetime.datetime.fromisoformat,
+            },
+            strict=True,
+        ),
+    )
