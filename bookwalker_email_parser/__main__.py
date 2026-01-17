@@ -9,6 +9,7 @@ from typing import Optional
 from .config import Config, load_config
 from .download import download
 from .mail import Mail
+from .order import Charge, Payment, parse_order
 
 
 def main(
@@ -29,6 +30,9 @@ def main(
     config = load_config(option.config, logger=logger)
     # download
     download(config, logger=logger)
+    # parse mails
+    mails = load_mails(config, logger=logger)
+    orders = parse_orders(mails, logger=logger)
 
 
 def default_logger() -> logging.Logger:
@@ -90,6 +94,19 @@ def load_mails(
     # sort from oldest to newest
     mails.sort(key=lambda mail: mail.date)
     return mails
+
+
+def parse_orders(
+    mails: list[Mail],
+    *,
+    logger: Optional[logging.Logger] = None,
+) -> list[Payment | Charge]:
+    orders: list[Payment | Charge] = []
+    for mail in mails:
+        order = parse_order(mail, logger=logger)
+        if order is not None:
+            orders.append(order)
+    return orders
 
 
 if __name__ == "__main__":

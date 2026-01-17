@@ -66,7 +66,7 @@ def parse_order(
     # mail type
     mail_type = mail.type()
     if mail_type not in ["Payment", "PreOrderPayment"]:
-        logger.info("mail is not payment")
+        logger.info("The mail is not a order")
         return None
     # books
     books = parse_books(mail.body, logger)
