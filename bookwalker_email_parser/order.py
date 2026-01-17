@@ -18,12 +18,19 @@ class Book:
 
 
 @dataclasses.dataclass
+class GrantedCoin:
+    label: str
+    coin: int
+
+
+@dataclasses.dataclass
 class Payment:
     date: datetime.datetime
     books: list[Book]
     discount: int
     tax: int
     coin_usage: int
+    granted_coins: list[GrantedCoin]
 
     def subtotal(self) -> int:
         return sum(book.price for book in self.books)
@@ -84,12 +91,16 @@ def parse_order(
         logger,
         pattern="Coin Usage[^：]*",
     )
+    # granted coins
+    granted_coins = parse_granted_coins(mail.body, logger)
+    # payment
     payment = Payment(
         date=date,
         books=books,
         discount=discount,
         tax=tax,
         coin_usage=coin_usage,
+        granted_coins=granted_coins,
     )
     # check: subtotal
     subtotal = parse_price_with_key("Subtotal", mail.body, logger)
@@ -241,3 +252,103 @@ def parse_price(
         return int(match.group("value").replace(",", ""))
     logger.error("Failed to parse price: %s", text)
     return 0
+
+
+def parse_granted_coins(
+    body: str,
+    logger: logging.Logger,
+) -> list[GrantedCoin]:
+    match = re.search(
+        r"^■Granted Coin(\(s\))?\s*：\s*(?P<total>[0-9,]+) [Cc]oin(s|\(s\))$\n"
+        r"((?P<items1>(^[^\S\n]*\*.+$\n)+)"
+        r"|(?P<items2>(^[^\S\n]*[-┗].+$\n)+))?",
+        body,
+        flags=re.MULTILINE,
+    )
+    granted_coins: list[GrantedCoin] = []
+    if match is None:
+        logger.info("No Granted Coins")
+        return granted_coins
+    total_coins = int(match.group("total").replace(",", ""))
+    if match.group("items1"):
+        # *Limited Time Coin valid through end of {month}, {year} (JST) : {coin} Coin(s)
+        for item_match in re.finditer(
+            r"^\s\*Limited Time Coin valid through end of"
+            r" (?P<month>[A-Z][a-z]+), (?P<year>[0-9]{4}) \(JST\)"
+            r" : (?P<coin>[0-9,]+) Coin\(s\)$",
+            match.group("items1"),
+            flags=re.MULTILINE,
+        ):
+            coin = int(item_match.group("coin").replace(",", ""))
+            year = int(item_match.group("year"))
+            month = MONTH_NAMES.index(item_match.group("month"))
+            granted_coins.append(
+                GrantedCoin(
+                    label=f"limited {year:04d}/{month:02d}",
+                    coin=coin,
+                )
+            )
+        # unlimited coin
+        unlimited_coin = total_coins - sum(x.coin for x in granted_coins)
+        if unlimited_coin > 0:
+            granted_coins.insert(
+                0,
+                GrantedCoin(label="unlimited", coin=unlimited_coin),
+            )
+    if match.group("items2"):
+        # - xxx coins (Valid through end of {month}, {year} JST)  xx%
+        # ┗ xxx coins (Valid through end of {month}, {year} JST)  xx%
+        # ┗ xxx coin(s) (Valid until the end of {month}, {year} JST)  xx%
+        for item_match in re.finditer(
+            r"^\s[-┗] (?P<coin>[0-9,]+) coin(s|\(s\))"
+            r" \(Valid (through|until the) end of"
+            r" (?P<month>[A-Z][a-z]+), (?P<year>[0-9]{4}) JST\)"
+            r"\s*(?P<percent>[0-9]+)%$",
+            match.group("items2"),
+            flags=re.MULTILINE,
+        ):
+            coin = int(item_match.group("coin").replace(",", ""))
+            year = int(item_match.group("year"))
+            month = MONTH_NAMES.index(item_match.group("month"))
+            percent = int(item_match.group("percent"))
+            granted_coins.append(
+                GrantedCoin(
+                    label=f"limited {year:04d}/{month:02d} {percent}%",
+                    coin=coin,
+                )
+            )
+        # check: total
+        total = sum(x.coin for x in granted_coins)
+        if total != total_coins:
+            logger.error(
+                "Total granted coins are not equal: %d != %d",
+                total_coins,
+                total,
+            )
+    # logger
+    if granted_coins:
+        logger.info(
+            "Granted Coins: %s (total %d)",
+            ", ".join(f"{x.coin}({x.label})" for x in granted_coins),
+            total_coins,
+        )
+    else:
+        logger.info("No Granted Coins")
+    return granted_coins
+
+
+MONTH_NAMES: list[str] = [
+    "",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
