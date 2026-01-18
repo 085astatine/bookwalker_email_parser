@@ -23,17 +23,20 @@ def main(
     logger: Optional[logging.Logger] = None,
     args: Optional[list[str]] = None,
 ) -> None:
+    # option
+    option = parse_option(args)
+    # config
+    config = load_config(option.config)
     # logger
     if logger is None:
         logger = default_logger()
-    logger.info("bookwalker_email_parser")
-    # option
-    option = parse_option(args)
+    if config.workspace.enable_log:
+        logger.addHandler(config.workspace.log_handler())
     if option.verbose:
         logger.setLevel(logging.DEBUG)
+    logger.info("bookwalker_email_parser")
     logger.debug("option: %s", option)
-    # config
-    config = load_config(option.config, logger=logger)
+    logger.debug("config: %s", config)
     # commands
     match option:
         case DownloadOption():
@@ -53,9 +56,7 @@ def default_logger() -> logging.Logger:
     logger = logging.getLogger("bookwalker_email_parser")
     logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
-    handler.formatter = logging.Formatter(
-        fmt="%(asctime)s %(name)s:%(levelname)s:%(message)s"
-    )
+    handler.formatter = logging.Formatter(fmt="%(levelname)s:%(message)s")
     logger.addHandler(handler)
     return logger
 

@@ -22,12 +22,35 @@ class ClientConfig:
 @dataclasses.dataclass(frozen=True)
 class WorkspaceConfig:
     path: pathlib.Path
+    enable_log: bool = True
+    log_format: str = "%(levelname)s:%(message)s"
 
     def orders(self) -> pathlib.Path:
         return self.path.joinpath("orders.json")
 
+    def log(
+        self,
+        time: Optional[datetime.datetime] = None,
+    ) -> pathlib.Path:
+        if time is None:
+            time = datetime.datetime.now()
+        return self.log_directory().joinpath(time.strftime("%Y-%m-%d_%H-%M-%S.log"))
+
     def mail_directory(self) -> pathlib.Path:
         return self.path.joinpath("mail")
+
+    def log_directory(self) -> pathlib.Path:
+        return self.path.joinpath("log")
+
+    def log_handler(
+        self,
+        time: Optional[datetime.datetime] = None,
+    ) -> logging.FileHandler:
+        if not self.log_directory().exists():
+            self.log_directory().mkdir(parents=True)
+        handler = logging.FileHandler(self.log(time), encoding="utf-8")
+        handler.formatter = logging.Formatter(fmt=self.log_format)
+        return handler
 
 
 @dataclasses.dataclass(frozen=True)
@@ -43,16 +66,9 @@ class Config:
     targets: list[TargetConfig] = dataclasses.field(default_factory=list)
 
 
-def load_config(
-    path: pathlib.Path,
-    *,
-    logger: Optional[logging.Logger] = None,
-) -> Config:
-    logger = logger or logging.getLogger(__name__)
+def load_config(path: pathlib.Path) -> Config:
     # load TOML
-    logger.info('load config from "%s"', path)
     data = tomllib.loads(path.read_text(encoding="utf-8"))
-    logger.debug("loaded TOML: %s", data)
     # to dataclass
     config = dacite.from_dict(
         data_class=Config,
@@ -64,5 +80,4 @@ def load_config(
             strict=True,
         ),
     )
-    logger.debug("config: %s", config)
     return config
