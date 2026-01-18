@@ -4,6 +4,7 @@ import argparse
 import dataclasses
 import logging
 import pathlib
+import shutil
 from typing import Optional
 
 from .config import Config, load_config
@@ -43,6 +44,9 @@ def main(
             mails = load_mails(config, logger=logger)
             orders = parse_orders(mails, logger=logger)
             save_orders_as_json(config.workspace.orders(), orders)
+        case CleanOption():
+            # clean workspace
+            shutil.rmtree(config.workspace.path)
 
 
 def default_logger() -> logging.Logger:
@@ -102,7 +106,12 @@ class ParseOption(BaseOption):
     pass
 
 
-Option = DownloadOption | ParseOption
+@dataclasses.dataclass
+class CleanOption(BaseOption):
+    pass
+
+
+Option = DownloadOption | ParseOption | CleanOption
 
 
 def option_parser() -> argparse.ArgumentParser:
@@ -126,6 +135,13 @@ def option_parser() -> argparse.ArgumentParser:
         sub_parsers.add_parser(
             "parse",
             help="parse emails into orders",
+        )
+    )
+    # clean
+    CleanOption.add_arguments(
+        sub_parsers.add_parser(
+            "clean",
+            help="clean the workspace",
         )
     )
     return parser
