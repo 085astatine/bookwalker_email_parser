@@ -9,7 +9,12 @@ from typing import Optional
 from .config import Config, load_config
 from .download import download
 from .mail import Mail
-from .order import Charge, Payment, parse_order
+from .order import (
+    Charge,
+    Payment,
+    parse_order,
+    save_orders_as_json,
+)
 
 
 def main(
@@ -28,11 +33,16 @@ def main(
     logger.debug("option: %s", option)
     # config
     config = load_config(option.config, logger=logger)
-    # download
-    download(config, logger=logger)
-    # parse mails
-    mails = load_mails(config, logger=logger)
-    orders = parse_orders(mails, logger=logger)
+    # commands
+    match option:
+        case DownloadOption():
+            # download emails to the workspace
+            download(config, logger=logger)
+        case ParseOption():
+            # parse mails into orders
+            mails = load_mails(config, logger=logger)
+            orders = parse_orders(mails, logger=logger)
+            save_orders_as_json(config.workspace.orders(), orders)
 
 
 def default_logger() -> logging.Logger:
@@ -47,13 +57,15 @@ def default_logger() -> logging.Logger:
 
 
 @dataclasses.dataclass
-class Option:
+class BaseOption:
     verbose: bool
     config: pathlib.Path
 
     @classmethod
-    def parser(cls) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser()
+    def add_common_arguments(
+        cls,
+        parser: argparse.ArgumentParser,
+    ) -> None:
         # verbose
         parser.add_argument(
             "-v",
@@ -71,12 +83,58 @@ class Option:
             type=pathlib.Path,
             help=".toml file (default %(default)s)",
         )
-        return parser
+
+    @classmethod
+    def add_arguments(
+        cls,
+        parser: argparse.ArgumentParser,
+    ) -> None:
+        parser.set_defaults(cls=cls)
+
+
+@dataclasses.dataclass
+class DownloadOption(BaseOption):
+    pass
+
+
+@dataclasses.dataclass
+class ParseOption(BaseOption):
+    pass
+
+
+Option = DownloadOption | ParseOption
+
+
+def option_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    BaseOption.add_common_arguments(parser)
+    # command
+    sub_parsers = parser.add_subparsers(
+        title="command",
+        description="command to be executed",
+        required=True,
+    )
+    # download
+    DownloadOption.add_arguments(
+        sub_parsers.add_parser(
+            "download",
+            help="download emails to the workspace",
+        )
+    )
+    # parse
+    ParseOption.add_arguments(
+        sub_parsers.add_parser(
+            "parse",
+            help="parse emails into orders",
+        )
+    )
+    return parser
 
 
 def parse_option(args: Optional[list[str]] = None) -> Option:
-    option = Option.parser().parse_args(args)
-    return Option(**vars(option))
+    option = vars(option_parser().parse_args(args))
+    cls = option.pop("cls")
+    return cls(**option)
 
 
 def load_mails(

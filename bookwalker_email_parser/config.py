@@ -23,6 +23,9 @@ class ClientConfig:
 class WorkspaceConfig:
     path: pathlib.Path
 
+    def orders(self) -> pathlib.Path:
+        return self.path.joinpath("orders.json")
+
     def mail_directory(self) -> pathlib.Path:
         return self.path.joinpath("mail")
 
