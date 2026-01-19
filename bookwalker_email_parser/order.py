@@ -17,19 +17,19 @@ if TYPE_CHECKING:
     from .mail import Mail
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Book:
     title: str
     price: int
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class GrantedCoin:
     label: str
     coin: int
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Payment:
     date: datetime.datetime
     books: list[Book]
@@ -48,7 +48,7 @@ class Payment:
         return self.total_amount() + self.coin_usage
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Charge:
     date: datetime.datetime
     item: str
