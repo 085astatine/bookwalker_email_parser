@@ -5,6 +5,7 @@ import datetime
 import json
 import logging
 import re
+import unicodedata
 import zoneinfo
 from typing import TYPE_CHECKING, Any, Optional, Type, TypeVar
 
@@ -412,3 +413,40 @@ def to_order_impl(
             strict=True,
         ),
     )
+
+
+def normalize_title(title: str) -> str:
+    # replace
+    title = title.translate(REPLACE_TABLE)
+    # unicode
+    title = unicodedata.normalize("NFKC", title)
+    # hull width -> half width
+    title = title.translate(FULLWIDTH_TO_HALFWIDTH_TABLE)
+    # remove【...】
+    title = re.sub(r"【[^【】]*(電子|特典|%OFF)[^【】]*】", "", title)
+    title = re.sub(r"【(期間限定)?([^【】]+セット)】", r" \g<2>", title)
+    title = title.strip()
+    # '(N)' -> ' N'
+    title = re.sub(r"\(([0-9]+)\)$", r" \g<1>", title)
+    # ': N' -> ' N'
+    title = re.sub(r": ([0-9]+)$", r" \g<1>", title)
+    # '第?N巻' -> 'N'
+    title = re.sub(r"第?([0-9]+)巻$", r"\g<1>", title)
+    # consective spaces
+    title = re.sub(r"\s+", " ", title)
+    # ... -> …
+    title = re.sub(r"\.{3}", "…", title)
+    return title
+
+
+# 〜(U+301C: wave dash) -> ～(U+FF5E: fullwidth tilda)
+REPLACE_TABLE = str.maketrans(
+    "\u301c",
+    "\uff5e",
+)
+
+
+FULLWIDTH_TO_HALFWIDTH_TABLE = str.maketrans(
+    "".join(chr(ord("！") + i) for i in range(94)) + "　・「」",
+    "".join(chr(ord("!") + i) for i in range(94)) + " ･｢｣",
+)
