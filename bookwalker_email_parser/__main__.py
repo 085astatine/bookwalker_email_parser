@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import dataclasses
-import json
 import logging
 import pathlib
 import shutil
@@ -16,13 +15,13 @@ from .mail import Mail
 from .order import (
     Book,
     Charge,
-    OrdersJSONEncoder,
     Payment,
     load_orders_from_json,
     normalize_title,
     parse_order,
     save_orders_as_json,
 )
+from .output import output_json, output_titles
 
 
 def main(
@@ -60,9 +59,9 @@ def main(
             with option.stream() as stream:
                 match option.format:
                     case "json":
-                        output_json(stream, orders)
+                        output_json(orders, stream=stream)
                     case "titles":
-                        output_titles(stream, orders)
+                        output_titles(orders, stream=stream)
         case CleanOption():
             # clean workspace
             shutil.rmtree(config.workspace.path)
@@ -287,35 +286,6 @@ def normalize_book_titles(payment: Payment) -> Payment:
         coin_usage=payment.coin_usage,
         granted_coins=[*payment.granted_coins],
     )
-
-
-def output_json(
-    stream: TextIO,
-    orders: list[Payment | Charge],
-) -> None:
-    json.dump(
-        [dataclasses.asdict(order) for order in orders],
-        stream,
-        ensure_ascii=False,
-        cls=OrdersJSONEncoder,
-        indent=2,
-    )
-    stream.write("\n")
-
-
-def output_titles(
-    stream: TextIO,
-    orders: list[Payment | Charge],
-) -> None:
-    titles: list[str] = []
-    for order in orders:
-        match order:
-            case Payment(books=books):
-                titles.extend(book.title for book in books)
-    # sort
-    titles.sort()
-    for title in titles:
-        stream.write(f"{title}\n")
 
 
 if __name__ == "__main__":
