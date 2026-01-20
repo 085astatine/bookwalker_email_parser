@@ -59,11 +59,28 @@ class TargetConfig:
     since: Optional[datetime.date | datetime.datetime] = None
 
 
+@dataclasses.dataclass(frozen=True)
+class OutputConfig:
+    normalize_title: bool = False
+    since: Optional[datetime.datetime] = None
+    until: Optional[datetime.datetime] = None
+
+    def in_period(self, date: datetime.datetime) -> bool:
+        if self.since is not None:
+            if date.timestamp() < self.since.timestamp():
+                return False
+        if self.until is not None:
+            if self.until.timestamp() < date.timestamp():
+                return False
+        return True
+
+
 @dataclasses.dataclass
 class Config:
     client: ClientConfig
+    targets: list[TargetConfig]
     workspace: WorkspaceConfig
-    targets: list[TargetConfig] = dataclasses.field(default_factory=list)
+    output: OutputConfig = OutputConfig()
 
 
 def load_config(path: pathlib.Path) -> Config:
@@ -76,8 +93,20 @@ def load_config(path: pathlib.Path) -> Config:
         config=dacite.Config(
             type_hooks={
                 pathlib.Path: pathlib.Path,
+                datetime.datetime: to_datetime,
             },
             strict=True,
         ),
     )
     return config
+
+
+def to_datetime(
+    value: datetime.date | datetime.datetime,
+) -> datetime.datetime:
+    match value:
+        case datetime.datetime():
+            return value
+        case datetime.date():
+            # add time(00:00:00) to date
+            return datetime.datetime.combine(value, datetime.time())
