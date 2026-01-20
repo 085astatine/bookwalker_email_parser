@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
+import json
 import logging
 import pathlib
 import shutil
-from typing import Optional
+import sys
+from typing import Iterator, Literal, Optional, TextIO, get_args
 
 from .config import Config, load_config
 from .download import download
 from .mail import Mail
 from .order import (
+    Book,
     Charge,
+    OrdersJSONEncoder,
     Payment,
+    load_orders_from_json,
+    normalize_title,
     parse_order,
     save_orders_as_json,
 )
@@ -47,6 +54,15 @@ def main(
             mails = load_mails(config, logger=logger)
             orders = parse_orders(mails, logger=logger)
             save_orders_as_json(config.workspace.orders(), orders)
+        case OutputOption():
+            # output orders
+            orders = load_output_targets(config, logger=logger)
+            with option.stream() as stream:
+                match option.format:
+                    case "json":
+                        output_json(stream, orders)
+                    case "titles":
+                        output_titles(stream, orders)
         case CleanOption():
             # clean workspace
             shutil.rmtree(config.workspace.path)
@@ -107,12 +123,56 @@ class ParseOption(BaseOption):
     pass
 
 
+OutputFormat = Literal["json", "titles"]
+
+
+@dataclasses.dataclass
+class OutputOption(BaseOption):
+    format: OutputFormat
+    output: Optional[pathlib.Path] = None
+
+    @contextlib.contextmanager
+    def stream(self) -> Iterator[TextIO]:
+        try:
+            if self.output is None:
+                yield sys.stdout
+            else:
+                with self.output.open(mode="w", encoding="utf-8") as file:
+                    yield file
+        finally:
+            pass
+
+    @classmethod
+    def add_arguments(
+        cls,
+        parser: argparse.ArgumentParser,
+    ) -> None:
+        super().add_arguments(parser)
+        # format
+        parser.add_argument(
+            "--format",
+            dest="format",
+            choices=get_args(OutputFormat),
+            required=True,
+            help="select output format",
+        )
+        # output
+        parser.add_argument(
+            "-o",
+            "--output",
+            dest="output",
+            type=pathlib.Path,
+            metavar="FILE",
+            help="output messages to FILE",
+        )
+
+
 @dataclasses.dataclass
 class CleanOption(BaseOption):
     pass
 
 
-Option = DownloadOption | ParseOption | CleanOption
+Option = DownloadOption | ParseOption | OutputOption | CleanOption
 
 
 def option_parser() -> argparse.ArgumentParser:
@@ -136,6 +196,13 @@ def option_parser() -> argparse.ArgumentParser:
         sub_parsers.add_parser(
             "parse",
             help="parse emails into orders",
+        )
+    )
+    # output
+    OutputOption.add_arguments(
+        sub_parsers.add_parser(
+            "output",
+            help="output orders",
         )
     )
     # clean
@@ -182,6 +249,73 @@ def parse_orders(
         if order is not None:
             orders.append(order)
     return orders
+
+
+def load_output_targets(
+    config: Config,
+    *,
+    logger: Optional[logging.Logger] = None,
+) -> list[Payment | Charge]:
+    logger = logger or logging.getLogger(__name__)
+    result: list[Payment | Charge] = []
+    # load orders from the workspace
+    orders = load_orders_from_json(config.workspace.orders())
+    # parse mails into orders
+    for order in orders:
+        # check order date is within period
+        if not config.output.in_period(order.date):
+            logger.info("order.date %s is not within the target period", order.date)
+            continue
+        match order:
+            case Payment() if config.output.normalize_title:
+                result.append(normalize_book_titles(order))
+            case _:
+                result.append(order)
+    return result
+
+
+def normalize_book_titles(payment: Payment) -> Payment:
+    books: list[Book] = [
+        Book(title=normalize_title(book.title), price=book.price)
+        for book in payment.books
+    ]
+    return Payment(
+        date=payment.date,
+        books=books,
+        discount=payment.discount,
+        tax=payment.tax,
+        coin_usage=payment.coin_usage,
+        granted_coins=[*payment.granted_coins],
+    )
+
+
+def output_json(
+    stream: TextIO,
+    orders: list[Payment | Charge],
+) -> None:
+    json.dump(
+        [dataclasses.asdict(order) for order in orders],
+        stream,
+        ensure_ascii=False,
+        cls=OrdersJSONEncoder,
+        indent=2,
+    )
+    stream.write("\n")
+
+
+def output_titles(
+    stream: TextIO,
+    orders: list[Payment | Charge],
+) -> None:
+    titles: list[str] = []
+    for order in orders:
+        match order:
+            case Payment(books=books):
+                titles.extend(book.title for book in books)
+    # sort
+    titles.sort()
+    for title in titles:
+        stream.write(f"{title}\n")
 
 
 if __name__ == "__main__":
