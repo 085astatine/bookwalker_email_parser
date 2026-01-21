@@ -64,7 +64,7 @@ def main(
                         output_titles(orders, stream=stream)
         case CleanOption():
             # clean workspace
-            shutil.rmtree(config.workspace.path)
+            clean(config, option, logger)
 
 
 def default_logger() -> logging.Logger:
@@ -166,9 +166,27 @@ class OutputOption(BaseOption):
         )
 
 
+CleanTarget = Literal["all", "email", "log"]
+
+
 @dataclasses.dataclass
 class CleanOption(BaseOption):
-    pass
+    target: CleanTarget = "all"
+
+    @classmethod
+    def add_arguments(
+        cls,
+        parser: argparse.ArgumentParser,
+    ) -> None:
+        super().add_arguments(parser)
+        # target
+        parser.add_argument(
+            "--target",
+            dest="target",
+            default="all",
+            choices=get_args(CleanTarget),
+            help="clean target",
+        )
 
 
 Option = DownloadOption | ParseOption | OutputOption | CleanOption
@@ -286,6 +304,23 @@ def normalize_book_titles(payment: Payment) -> Payment:
         coin_usage=payment.coin_usage,
         granted_coins=[*payment.granted_coins],
     )
+
+
+def clean(
+    config: Config,
+    option: CleanOption,
+    logger: logging.Logger,
+) -> None:
+    match option.target:
+        case "all":
+            logger.info("clean workspace")
+            shutil.rmtree(config.workspace.path)
+        case "email":
+            logger.info("clean emails")
+            shutil.rmtree(config.workspace.mail_directory())
+        case "log":
+            logger.info("clean logs")
+            shutil.rmtree(config.workspace.log_directory())
 
 
 if __name__ == "__main__":
