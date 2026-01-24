@@ -21,7 +21,7 @@ from .order import (
     parse_order,
     save_orders_as_json,
 )
-from .output import output_json, output_titles
+from .output import output_json, output_markdown_table, output_titles
 
 
 def main(
@@ -62,6 +62,8 @@ def main(
                         output_json(orders, stream=stream)
                     case "titles":
                         output_titles(orders, stream=stream)
+                    case "markdown":
+                        output_markdown_table(orders, stream=stream)
         case CleanOption():
             # clean workspace
             clean(config, option, logger)
@@ -122,7 +124,7 @@ class ParseOption(BaseOption):
     pass
 
 
-OutputFormat = Literal["json", "titles"]
+OutputFormat = Literal["json", "titles", "markdown"]
 
 
 @dataclasses.dataclass
