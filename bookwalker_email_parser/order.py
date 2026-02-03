@@ -47,6 +47,9 @@ class Payment:
     def total_payment(self) -> int:
         return self.total_amount() + self.coin_usage
 
+    def total_granted_coin(self) -> int:
+        return sum(granted_coin.coin for granted_coin in self.granted_coins)
+
 
 @dataclasses.dataclass(frozen=True)
 class Charge:
