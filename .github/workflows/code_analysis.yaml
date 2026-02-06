@@ -1,0 +1,48 @@
+name: code analysis
+
+on: push
+
+jobs:
+  code_analysis:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version:
+          - "3.13"
+          - "3.14"
+
+    steps:
+      # Checkout
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Setup Python
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Setup uv
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+
+      # Setup .venv
+      - name: Setup .venv
+        run: uv sync
+
+      # Mypy
+      - name: Mypy
+        run: uv run mypy bookwalker_email_parser
+
+      # Pylint
+      - name: Pylint
+        run: uv run pylint bookwalker_email_parser
+
+      # Black
+      - name: Black
+        run: uv run black --check bookwalker_email_parser
+
+      # isort
+      - name: isort
+        run: uv run isort --check bookwalker_email_parser
