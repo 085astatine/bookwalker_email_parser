@@ -247,9 +247,13 @@ def load_mails(
     *,
     logger: Optional[logging.Logger] = None,
 ) -> list[Mail]:
+    logger = logger or logging.getLogger(__name__)
     mails: list[Mail] = []
     for target in config.targets:
         directory = config.workspace.mail_directory().joinpath(target.folder)
+        if not directory.is_dir():
+            logger.warning("The mailbox(%s) does not exist", directory)
+            continue
         for path in directory.iterdir():
             mail = Mail.load_file(path, logger=logger)
             if mail is not None:
@@ -280,7 +284,11 @@ def load_output_targets(
     logger = logger or logging.getLogger(__name__)
     result: list[Payment | Charge] = []
     # load orders from the workspace
-    orders = load_orders_from_json(config.workspace.orders())
+    orders_path = config.workspace.orders()
+    if not orders_path.exists():
+        logger.error("Orders data(%s) does not exist", orders_path)
+        return result
+    orders = load_orders_from_json(orders_path)
     # parse mails into orders
     for order in orders:
         # check order date is within period
