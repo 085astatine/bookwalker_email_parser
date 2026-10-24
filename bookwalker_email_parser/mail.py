@@ -4,6 +4,7 @@ import dataclasses
 import email.parser
 import email.policy
 import logging
+import re
 from typing import TYPE_CHECKING, Literal, Optional, Self, cast
 
 if TYPE_CHECKING:
@@ -18,6 +19,7 @@ MailType = Literal["Payment", "PreOrderPayment", "PreOrder", "Other"]
 
 @dataclasses.dataclass(frozen=True)
 class Mail:
+    id: int
     subject: str
     date: datetime.datetime
     body: str
@@ -52,6 +54,13 @@ class Mail:
             data = email.parser.BytesParser(policy=email.policy.default).parse(file)
         # check loaded data
         error = False
+        # id
+        if re.match(r"[0-9]+", path.name):
+            mail_id = int(path.name)
+            logger.debug("ID: %d", mail_id)
+        else:
+            logger.warning("The file name is not a number: %s", path.name)
+            mail_id = 0
         # header: from
         error |= check_from_header(data, logger)
         # header: subject
@@ -77,6 +86,7 @@ class Mail:
         if error or date is None:
             return None
         return cls(
+            id=mail_id,
             subject=subject,
             date=date,
             body=data.get_content(),
