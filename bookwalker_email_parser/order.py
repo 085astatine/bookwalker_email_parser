@@ -7,7 +7,7 @@ import logging
 import re
 import unicodedata
 import zoneinfo
-from typing import TYPE_CHECKING, Any, Optional, Type, TypeVar
+from typing import TYPE_CHECKING, Any, MutableMapping, Optional, Type, TypeVar
 
 import dacite
 
@@ -60,13 +60,38 @@ class Charge:
     bonus_coin: int
 
 
+class ParseLogger(logging.LoggerAdapter):
+    def __init__(
+        self,
+        logger: logging.Logger,
+        mail_id: int,
+    ) -> None:
+        super().__init__(logger)
+        self._mail_id = mail_id
+
+    def process(
+        self,
+        msg: Any,
+        kwargs: MutableMapping[str, Any],
+    ) -> tuple[Any, MutableMapping[str, Any]]:
+        return super().process(f"[mail: {self._mail_id}] {msg}", kwargs)
+
+
 def parse_order(
     mail: Mail,
     *,
     logger: Optional[logging.Logger] = None,
 ) -> Optional[Payment | Charge]:
-    # logger
-    logger = logger or logging.getLogger(__name__)
+    return parse_order_impl(
+        mail,
+        ParseLogger(logger or logging.getLogger(__name__), mail.id),
+    )
+
+
+def parse_order_impl(
+    mail: Mail,
+    logger: ParseLogger,
+) -> Optional[Payment | Charge]:
     # mail type
     mail_type = mail.type()
     if mail_type not in ["Payment", "PreOrderPayment"]:
@@ -176,7 +201,7 @@ TIMEZONE_DICT: dict[str, str] = {
 
 def parse_books(
     body: str,
-    logger: logging.Logger,
+    logger: ParseLogger,
 ) -> list[Book]:
     books: list[Book] = []
     for match in re.finditer(
@@ -196,7 +221,7 @@ def parse_books(
 
 def parse_charge(
     mail: Mail,
-    logger: logging.Logger,
+    logger: ParseLogger,
 ) -> Optional[Charge]:
     match = re.search(
         r"^■Item\s*:\s*(?P<item>BOOK☆WALKER (期間限定)?コイン [0-9,]+円分).+$\n*"
@@ -231,7 +256,7 @@ def parse_charge(
 def parse_price_with_key(
     key: str,
     body: str,
-    logger: logging.Logger,
+    logger: ParseLogger,
     *,
     pattern: Optional[str] = None,
 ) -> int:
@@ -251,7 +276,7 @@ def parse_price_with_key(
 
 def parse_price(
     text: str,
-    logger: logging.Logger,
+    logger: ParseLogger,
 ) -> int:
     match = re.match(
         r"JPY\s*(?P<value>-?[0-9,]+)(\s*\(+Tax\))?",
@@ -265,7 +290,7 @@ def parse_price(
 
 def parse_granted_coins(
     body: str,
-    logger: logging.Logger,
+    logger: ParseLogger,
 ) -> list[GrantedCoin]:
     match = re.search(
         r"^■Granted Coin(\(s\))?\s*：\s*(?P<total>[0-9,]+) [Cc]oin(s|\(s\))$\n"
